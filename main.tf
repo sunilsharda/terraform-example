@@ -4,13 +4,6 @@ provider "aws" {
   region     = "${var.aws_region}"
 }
 
-# --- network informaiton
-data "aws_availability_zones" "available" {}
-
-data "aws_vpc" "selected" {
-  id = "${var.vpc_id}"
-}
-
 #--- compute
 resource "aws_autoscaling_group" "digital-web" {
   name                 = "digital-web-asg"
@@ -18,10 +11,10 @@ resource "aws_autoscaling_group" "digital-web" {
   max_size             = "${var.asg_max}"
   desired_capacity     = "${var.asg_desired}"
   launch_configuration = "${aws_launch_configuration.digital-web.name}"
-  vpc_zone_identifier = ["subnet-a5dc198f","subnet-b6b32c8b"]
+  vpc_zone_identifier = ["${split(",", lookup(var.subnet_ids, var.vpc_id))}"]
 }
 
-data "template_file" "cloud_config" {
+data "template_file" "ecs_config" {
   template = "${file("${path.module}/config/cloud-config.yml")}"
 
   vars {
@@ -40,10 +33,10 @@ resource "aws_launch_configuration" "digital-web" {
 
   name                        = "digital-web-launch-configs"
   key_name                    = "personal"
-  image_id                    = "ami-6df8fe7a"
-  instance_type               = "t2.micro"
+  image_id                    = "${var.ami_id}"
+  instance_type               = "${var.instance_type}"
   iam_instance_profile        = "${aws_iam_instance_profile.digital-web.name}"
-  user_data                   = "${data.template_file.cloud_config.rendered}"
+  user_data                   = "${data.template_file.ecs_config.rendered}"
   associate_public_ip_address = false
 
   lifecycle {
@@ -53,7 +46,7 @@ resource "aws_launch_configuration" "digital-web" {
 
 # --- ECS
 resource "aws_ecs_cluster" "digital-web" {
-  name = "digital_web_alb_ecs_cluster"
+  name = "digital_web_ecs_cluster"
 }
 
 data "template_file" "task_definition" {
@@ -83,7 +76,7 @@ resource "aws_alb_target_group" "test" {
 
 # --- IAM
 resource "aws_iam_role" "ecs_service" {
-  name = "digital-web_alb_ecs_role"
+  name = "digital-web_ecs_role"
 
   assume_role_policy = <<EOF
 {
@@ -103,7 +96,7 @@ EOF
 }
 
 resource "aws_iam_role_policy" "ecs_service" {
-  name = "digital-web_alb_ecs_policy"
+  name = "digital-web_ecs_policy"
   role = "${aws_iam_role.ecs_service.name}"
 
   policy = <<EOF
@@ -128,12 +121,12 @@ EOF
 }
 
 resource "aws_iam_instance_profile" "digital-web" {
-  name  = "digital-web-alb-ecs-instance-profile"
+  name  = "digital-web-instance-profile"
   roles = ["${aws_iam_role.web_instance.name}"]
 }
 
 resource "aws_iam_role" "web_instance" {
-  name = "digital-web-alb-ecs-instance-role"
+  name = "digital-web-instance-role"
 
   assume_role_policy = <<EOF
 {
@@ -154,7 +147,7 @@ EOF
 
 #Attach instances to a policy to allow for specific permissions. Without this the EC2 instances do not get registered with ECS cluster
 resource "aws_iam_role_policy" "web_instance" {
-  name = "digital-web_alb_instance_policy"
+  name = "digital-web_instance_policy"
   role = "${aws_iam_role.web_instance.name}"
 
   policy = <<EOF
@@ -229,7 +222,7 @@ resource "aws_security_group" "elb" {
 }
 
 resource "aws_alb" "main" {
-name            = "digital-web-alb-ecs"
+name            = "digital-web-alb"
 security_groups = ["${aws_security_group.elb.id}","sg-51efc628"]
 subnets = ["subnet-a5dc198f","subnet-b6b32c8b"]
 

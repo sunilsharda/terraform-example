@@ -32,6 +32,18 @@ variable "asg_desired" {
   default     = "1"
 }
 
-#variable "key_name" {
-#  description = "Key for the Auto scaling configuration"
-#}
+variable "subnet_ids" {
+  type = "map"
+  description = "Mapping of subnet ids per vpc"
+  #default = {
+  #  vpc-5088c834 = "subnet-a5dc198f,subnet-b6b32c8b"
+  #}
+}
+
+variable "ami_id" {
+  description = "AMI to be used for provisioning instances"
+}
+
+variable "instance_type" {
+  description = "Instance type"
+}
