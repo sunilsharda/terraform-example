@@ -1,0 +1,16 @@
+#cloud-boothook
+# --- Set ECS agent HTTP proxy
+if [ ! -f /var/lib/cloud/instance/sem/config_ecs-agent ]; then
+ echo "ECS_CLUSTER=${ecs_cluster_name}" >> /etc/ecs/ecs.config
+ # --- remove the Error from tcs; backing offerr{"AccessDeniedException":"Forbidden"}, websocket: bad handshake
+ # --- https://github.com/aws/amazon-ecs-agent/issues/102
+ echo "ECS_DISABLE_METRICS=true" >> /etc/ecs/ecs.config
+ echo "ECS_AVAILABLE_LOGGING_DRIVERS=[\"awslogs\"]" >> /etc/ecs/ecs.config
+ echo "ECS_LOGLEVEL==${ecs_log_level}" >> /etc/ecs/ecs.config
+ echo "ECS_VERSION=${ecs_agent_version}" >> /etc/ecs/ecs.config
+ echo "$$: $(date +%s.%N | cut -b1-13)" > /var/lib/cloud/instance/sem/config_ecs-agent
+fi
+
+runcmd:
+ # --- https://github.com/docker/docker/issues/490
+ - sysctl -w net.ipv4.ip_forward=1
