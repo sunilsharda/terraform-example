@@ -15,7 +15,7 @@ resource "aws_autoscaling_group" "digital-web" {
 }
 
 data "template_file" "ecs_config" {
-  template = "${file("${path.module}/config/cloud-config.yml")}"
+  template = "${file("${path.module}/config/ecs-config.yml")}"
 
   vars {
     #aws_region         = "${var.aws_region}"
@@ -26,10 +26,39 @@ data "template_file" "ecs_config" {
   }
 }
 
+# the instances over SSH and HTTP
+resource "aws_security_group" "instances" {
+  name        = "Instances Group"
+  description = "Used for the EC2 instances"
+  vpc_id      = "${var.vpc_id}"
+
+  # SSH access from private ips
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${var.my_ip}"]
+  }
+
+  # HTTP access from the VPC
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    self = true
+  }
+
+  # outbound internet access
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_launch_configuration" "digital-web" {
-  #security_groups = [
-   #"${split(",", lookup(var.security_group_ids, var.vpc_id))}",
-  #]
+  security_groups = ["${aws_security_group.instances.id}"]
 
   name                        = "digital-web-launch-configs"
   key_name                    = "personal"
@@ -223,7 +252,7 @@ resource "aws_security_group" "elb" {
 
 resource "aws_alb" "main" {
 name            = "digital-web-alb"
-security_groups = ["${aws_security_group.elb.id}","sg-51efc628"]
+security_groups = ["${aws_security_group.elb.id}","${aws_security_group.instances.id}"]
 subnets = ["subnet-a5dc198f","subnet-b6b32c8b"]
 
 # --- If true, the ALB will be internal

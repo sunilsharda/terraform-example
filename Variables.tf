@@ -47,3 +47,7 @@ variable "ami_id" {
 variable "instance_type" {
   description = "Instance type"
 }
+
+variable "my_ip" {
+  description = "My IP address"
+}
