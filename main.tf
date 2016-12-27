@@ -56,9 +56,18 @@ resource "aws_ecs_cluster" "digital-web" {
   name = "digital_web_alb_ecs_cluster"
 }
 
+data "template_file" "task_definition" {
+  template = "${file("${path.module}/task-definitions/digital-web-task-def.json")}"
+
+  vars {
+    log_group_region = "${var.aws_region}"
+    log_group_name   = "${aws_cloudwatch_log_group.web.name}"
+  }
+}
+
 resource "aws_ecs_task_definition" "digital-web" {
   family                = "digital-web_td"
-  container_definitions = "${file("task-definitions/digital-web-task-def.json")}"
+  container_definitions = "${data.template_file.task_definition.rendered}"
   # -- The Docker networking mode to use for the containers in the task.
   # --- The valid values are none, bridge, and host
   network_mode          = "host"
@@ -137,16 +146,7 @@ resource "aws_iam_role" "web_instance" {
         "Service": "ec2.amazonaws.com"
       },
       "Action": "sts:AssumeRole"
-    },
-    {
-      "Sid": "",
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ecs.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
     }
-
   ]
 }
 EOF
@@ -213,10 +213,24 @@ resource "aws_ecs_service" "digital-web" {
  ]
 }
 
+# A security group for the ELB so it is accessible via the web
+resource "aws_security_group" "elb" {
+  name        = "terraform_example_elb"
+  description = "Used in the terraform"
+  vpc_id      = "${var.vpc_id}"
+
+  # HTTP access from anywhere
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_alb" "main" {
 name            = "digital-web-alb-ecs"
-#subnets         = ["${split(",", lookup(var.subnet_ids, var.vpc_id))}"]
-#security_groups = ["${split(",", lookup(var.security_group_ids, var.vpc_id))}"]
+security_groups = ["${aws_security_group.elb.id}","sg-51efc628"]
 subnets = ["subnet-a5dc198f","subnet-b6b32c8b"]
 
 # --- If true, the ALB will be internal
