@@ -237,7 +237,7 @@ resource "aws_ecs_service" "digital-web" {
 
 # A security group for the ELB so it is accessible via the web
 resource "aws_security_group" "elb" {
-  name        = "terraform_example_elb"
+  name        = "digital-web_elb"
   description = "Used in the terraform"
   vpc_id      = "${var.vpc_id}"
 
