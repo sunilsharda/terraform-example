@@ -20,6 +20,7 @@ variable "vpc_id" {
 
 variable "asg_min" {
   description = "Min numbers of servers in ASG"
+  default = "1"
 }
 
 variable "asg_max" {

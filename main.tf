@@ -1,10 +1,12 @@
+#-- Configure the AWS Provider
 provider "aws" {
   access_key = "${var.aws_access_key}"
   secret_key = "${var.aws_secret_key}"
   region     = "${var.aws_region}"
 }
 
-#--- compute
+#--- Set up the Autoscaling group for the instances, with the associated
+#--- Launch config and subnet id's across the availability zones
 resource "aws_autoscaling_group" "digital-web" {
   name                 = "digital-web-asg"
   min_size             = "${var.asg_min}"
@@ -14,11 +16,12 @@ resource "aws_autoscaling_group" "digital-web" {
   vpc_zone_identifier = ["${split(",", lookup(var.subnet_ids, var.vpc_id))}"]
 }
 
+#--- Source the config settings for the ECS instances.
+#--- Required to register the instances with the correct ECS cluster etc
 data "template_file" "ecs_config" {
   template = "${file("${path.module}/config/ecs-config.yml")}"
 
   vars {
-    #aws_region         = "${var.aws_region}"
     ecs_cluster_name   = "${aws_ecs_cluster.digital-web.name}"
     ecs_log_level      = "info"
     ecs_agent_version  = "latest"
@@ -26,13 +29,13 @@ data "template_file" "ecs_config" {
   }
 }
 
-# the instances over SSH and HTTP
+#--- Security group for the EC2 instances. SSH and HTTP
 resource "aws_security_group" "instances" {
   name        = "Instances Group"
   description = "Used for the EC2 instances"
   vpc_id      = "${var.vpc_id}"
 
-  # SSH access from private ips
+  # SSH access from private ips. This is Temporary and should only be used while testing.
   ingress {
     from_port   = 22
     to_port     = 22
@@ -45,10 +48,10 @@ resource "aws_security_group" "instances" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    self = true
+    self = true #Allow access from sources using the same security group as THIS
   }
 
-  # outbound internet access
+  # outbound internet access. Needed for ECS agent to communicate outbound
   egress {
     from_port   = 0
     to_port     = 0
@@ -57,6 +60,7 @@ resource "aws_security_group" "instances" {
   }
 }
 
+#--- Lanuch Config using "Instances" SG and "ecs_config" User Data.
 resource "aws_launch_configuration" "digital-web" {
   security_groups = ["${aws_security_group.instances.id}"]
 
@@ -73,11 +77,15 @@ resource "aws_launch_configuration" "digital-web" {
   }
 }
 
-# --- ECS
+
+#--- ECS Section
+
+#--- Cluster
 resource "aws_ecs_cluster" "digital-web" {
   name = "digital_web_ecs_cluster"
 }
 
+#--- Source the Task Definition
 data "template_file" "task_definition" {
   template = "${file("${path.module}/task-definitions/digital-web-task-def.json")}"
 
@@ -87,6 +95,7 @@ data "template_file" "task_definition" {
   }
 }
 
+#Provision Task definition
 resource "aws_ecs_task_definition" "digital-web" {
   family                = "digital-web_td"
   container_definitions = "${data.template_file.task_definition.rendered}"
@@ -95,15 +104,9 @@ resource "aws_ecs_task_definition" "digital-web" {
   network_mode          = "host"
 }
 
-# --- ALB
-resource "aws_alb_target_group" "test" {
-  name     = "digital-web-ecs-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = "${var.vpc_id}"
-}
+#--- IAM Section
 
-# --- IAM
+# IAM role for ECS service
 resource "aws_iam_role" "ecs_service" {
   name = "digital-web_ecs_role"
 
@@ -124,6 +127,7 @@ resource "aws_iam_role" "ecs_service" {
 EOF
 }
 
+# IAM Policy attached to the IAM role for ECS Service
 resource "aws_iam_role_policy" "ecs_service" {
   name = "digital-web_ecs_policy"
   role = "${aws_iam_role.ecs_service.name}"
@@ -149,11 +153,13 @@ resource "aws_iam_role_policy" "ecs_service" {
 EOF
 }
 
+# IAM Instance Profile for EC2 instances
 resource "aws_iam_instance_profile" "digital-web" {
   name  = "digital-web-instance-profile"
   roles = ["${aws_iam_role.web_instance.name}"]
 }
 
+# IAM Role for EC2 instances
 resource "aws_iam_role" "web_instance" {
   name = "digital-web-instance-role"
 
@@ -174,7 +180,8 @@ resource "aws_iam_role" "web_instance" {
 EOF
 }
 
-#Attach instances to a policy to allow for specific permissions. Without this the EC2 instances do not get registered with ECS cluster
+# IAM role policy attached to IAM role for EC2 instances.
+# Without this the EC2 instances do not get registered with ECS cluster
 resource "aws_iam_role_policy" "web_instance" {
   name = "digital-web_instance_policy"
   role = "${aws_iam_role.web_instance.name}"
@@ -207,20 +214,28 @@ resource "aws_iam_role_policy" "web_instance" {
 EOF
 }
 
-# --- aws_ecs_service - effectively a task that is expected to run until and error occurs
-# --- of a user terminates it. (typically a webserver or a databse)
+# ALB Target group. Referenced by the ECS service below for instance registration.
+resource "aws_alb_target_group" "test" {
+  name     = "digital-web-ecs-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = "${var.vpc_id}"
+}
+
+# ECS Service - effectively a task that is expected to run until an error occurs
+# or a user terminates it. (typically a webserver/appserver or a database)
 resource "aws_ecs_service" "digital-web" {
   name            = "digital-web-ecs-service"
   cluster         = "${aws_ecs_cluster.digital-web.id}"
   task_definition = "${aws_ecs_task_definition.digital-web.arn}"
   desired_count   = 2
-  # --- iam_role is required if you are using an lb with your service. (allows you Amazon ECS
+  # --- iam_role is required if you are using an lb with your service. (allows the Amazon ECS
   # --- container agent to make calls to your load balancer on your behalf.)
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {
     target_group_arn = "${aws_alb_target_group.test.id}"
-    container_name   = "digital-web"
+    container_name   = "nginx"
     container_port   = "80"
   }
 
@@ -250,6 +265,7 @@ resource "aws_security_group" "elb" {
   }
 }
 
+# ALB Resource.
 resource "aws_alb" "main" {
 name            = "digital-web-alb"
 security_groups = ["${aws_security_group.elb.id}","${aws_security_group.instances.id}"]
@@ -266,6 +282,9 @@ tags {
 
 }
 
+#--- ALB Listener
+# Multiple will be needed when running more than 1 container on a host and if each
+# container needs to be accessible via the ALB.
 resource "aws_alb_listener" "front_end" {
   load_balancer_arn = "${aws_alb.main.id}"
   port              = "80"

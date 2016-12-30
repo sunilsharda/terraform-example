@@ -1,14 +1,41 @@
 [
   {
-    "cpu": 256,
+   "cpu": 256,
     "essential": true,
-    "image": "nginx",
-    "memory": 512,
-    "name": "digital-web",
+    "image": "sshard/nginx",
+    "memory": 256,
+    "name": "nginx",
     "portMappings": [
       {
-        "containerPort": 80,
+        "containerPort":  80,
         "hostPort": 80
+      }
+    ],
+    "essential": true,
+    "entryPoint": [],
+    "command": [
+    ],
+    "environment": [],
+    "mountPoints":[],
+    "volumesFrom": [],
+    "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+            "awslogs-group": "${log_group_name}",
+            "awslogs-region": "${log_group_region}"
+        }
+    }
+  },
+  {
+    "cpu": 256,
+    "essential": true,
+    "image": "sshard/tomcat-sample",
+    "memory": 256,
+    "name": "sample-web",
+    "portMappings": [
+      {
+        "containerPort": 8080,
+        "hostPort": 8080
       }
     ],
     "essential": true,
