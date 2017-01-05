@@ -9,7 +9,8 @@ resource "aws_alb_target_group" "test" {
 # ALB Resource.
 resource "aws_alb" "main" {
 name            = "digital-web-alb"
-security_groups = ["${aws_security_group.elb.id}","${aws_security_group.instances.id}"]
+#security_groups = ["${aws_security_group.elb.id}","${aws_security_group.instances.id}"]
+security_groups = ["${aws_security_group.elb.id}"]
 subnets = ["subnet-a5dc198f","subnet-b6b32c8b"]
 
 # --- If true, the ALB will be internal

@@ -17,7 +17,7 @@ resource "aws_security_group" "instances" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    self = true #Allow access from sources using the same security group as THIS
+    security_groups = ["${aws_security_group.elb.id}"]
   }
 
   # outbound internet access. Needed for ECS agent to communicate outbound
@@ -40,6 +40,13 @@ resource "aws_security_group" "elb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
