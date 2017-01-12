@@ -1,4 +1,4 @@
-# ALB Target group. Referenced by the ECS service below for instance registration.
+# ALB Target group. Referenced by the ECS service for instance registration.
 resource "aws_alb_target_group" "test" {
   name     = "digital-web-ecs-tg"
   port     = 80

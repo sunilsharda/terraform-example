@@ -1,7 +1,7 @@
 #--- Security group for the EC2 instances. SSH and HTTP
 resource "aws_security_group" "instances" {
   name        = "Instances Group"
-  description = "Used for the EC2 instances"
+  description = "Security Group for the EC2 instances"
   vpc_id      = "${var.vpc_id}"
 
   # SSH access from private ips. This is Temporary and should only be used while testing.
@@ -32,7 +32,7 @@ resource "aws_security_group" "instances" {
 # A security group for the ELB so it is accessible via the web
 resource "aws_security_group" "elb" {
   name        = "digital-web_elb"
-  description = "Used in the terraform"
+  description = "Security Group for the ALB"
   vpc_id      = "${var.vpc_id}"
 
   # HTTP access from anywhere

@@ -22,7 +22,7 @@ data "template_file" "ecs_config" {
   }
 }
 
-#--- Lanuch Config using "Instances" SG and "ecs_config" User Data.
+#--- Launch Config using "Instances" SG and "ecs_config" User Data.
 resource "aws_launch_configuration" "digital-web" {
   security_groups = ["${aws_security_group.instances.id}"]
 
